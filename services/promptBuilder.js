@@ -16,11 +16,14 @@ function buildPrompt({ text, preset }) {
     throw new Error("Missing text or preset in prompt builder");
   }
 
+  console.log("🔥 promptBuilder loaded 🔥");
+
   const ruleInstructions = interpretRules(preset.rules);
 
   let outputFormatInstruction = "";
 
   switch (preset.outputStyle) {
+
     case "bullets":
       outputFormatInstruction =
         "Present the output using bullet points under clear headings.";
@@ -80,15 +83,6 @@ Answer:
         "List ONLY formulas or code snippets. No explanations.";
       break;
 
-    case "flashcards":
-      outputFormatInstruction = `
-Generate flashcards in the EXACT format:
-Card 1:
-Q: Question
-A: Answer
-`;
-      break;
-
     default:
       outputFormatInstruction =
         "Present the output in a clear and structured format.";
@@ -96,7 +90,8 @@ A: Answer
 
   let lengthInstruction = "";
   if (preset.maxWordsPerSection) {
-    lengthInstruction = `Each section must NOT exceed ${preset.maxWordsPerSection} words.`;
+    lengthInstruction =
+      `Each section must NOT exceed ${preset.maxWordsPerSection} words.`;
   }
 
   const strictBlock = STRICT_MODE

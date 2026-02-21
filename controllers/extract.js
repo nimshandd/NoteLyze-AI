@@ -1,94 +1,19 @@
 console.log("🔥 CONTROLLER FILE ACTIVE 🔥");
 
 const path = require("path");
-
+const config = require("../config/appConfig");
 const { extractPdfText } = require("../services/pdfExtractor");
 const { extractPptxText } = require("../services/pptxExtractor");
 const { cleanText } = require("../services/textCleaner");
 const textChunker = require("../services/textChunker");
-const { applyPreset } = require("../services/presetProcessor");
-const { validateMCQOutput } = require("../services/mcqValidator");
 const { buildPrompt } = require("../services/promptBuilder");
 const { PRESETS } = require("../presets/presetConfig");
-
-// ---------------- TEMP AI MOCK ----------------
-// ---------------- TEMP AI MOCK ----------------
-const callAI = async (prompt, presetConfig) => {
-
-  switch (presetConfig.outputStyle) {
-
-    case "bullets":
-      return `
-## Sample Heading
-- Key point 1
-- Key point 2
-- Key point 3
-`;
-
-    case "structured_paragraphs":
-      return `
-### Topic Overview
-This is a structured explanation paragraph generated as a mock.
-
-### Key Concepts
-Detailed explanation of main ideas in structured format.
-`;
-
-    case "one_liners":
-      return `
-Concept 1 – Short definition.
-Concept 2 – Short definition.
-Concept 3 – Short definition.
-`;
-
-    case "mcq":
-      let questions = "";
-      for (let i = 1; i <= (presetConfig.questionCount || 5); i++) {
-        questions += `
-Q${i}. Sample question ${i}?
-A. Option A
-B. Option B
-C. Option C
-D. Option D
-Correct Answer: A
-`;
-      }
-      return questions;
-
-    case "qa":
-      return `
-Q1. What is a hash function?
-Answer:
-A function that converts data into a fixed-length value.
-`;
-
-    case "table":
-      return `
-| Concept | Description |
-|----------|-------------|
-| Hashing | Converts input into fixed output |
-| HMAC | Message authentication mechanism |
-`;
-
-    case "flashcards":
-      return `
-Card 1:
-Q: What is encryption?
-A: Converting data into unreadable form.
-
-Card 2:
-Q: What is decryption?
-A: Converting data back to readable form.
-`;
-
-    default:
-      return "Mock response generated successfully.";
-  }
-};
-
+const { callAI } = require("../services/aiClient");
 
 // ---------------- CONTROLLER ----------------
 const extractText = async (req, res) => {
+  const startTime = Date.now();
+
   try {
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -100,10 +25,8 @@ const extractText = async (req, res) => {
     // 1️⃣ EXTRACT TEXT
     if (ext === ".pdf") {
       rawText = await extractPdfText(req.file.buffer);
-
     } else if (ext === ".pptx") {
       rawText = await extractPptxText(req.file.buffer);
-
     } else {
       return res.status(400).json({ error: "Unsupported file type" });
     }
@@ -128,10 +51,14 @@ const extractText = async (req, res) => {
       return res.status(400).json({ error: "Invalid preset key" });
     }
 
-    // 5️⃣ CHUNKING (REAL CHUNKER)
+    // 5️⃣ CHUNKING (Preset-aware)
     const chunks = textChunker(rawText, {
-      compressionLevel: presetConfig.compressionLevel || "medium",
-      maxChunks: 3
+      compressionLevel:
+        presetConfig.compressionLevel ||
+        config.processing.defaultCompression,
+      maxChunks:
+        presetConfig.maxChunks ||
+        config.processing.maxChunks
     });
 
     if (!chunks.length) {
@@ -140,39 +67,57 @@ const extractText = async (req, res) => {
 
     console.log("✅ Chunks created:", chunks.length);
 
-    // 6️⃣ APPLY PRESET METADATA
-    const presetChunks = applyPreset(chunks, presetConfig);
+    let finalOutput;
 
-    // 7️⃣ BUILD AI PROMPT
-    const prompt = buildPrompt({
-      text: presetChunks[0]?.content,
-      preset: presetConfig
-    });
+    // 🔥 Global-generation presets (MCQ + shortQA only)
+    const isGlobalGenerationPreset =
+      presetConfig.type === "mcq" ||
+      presetConfig.outputStyle === "qa";
 
-    // 8️⃣ CALL AI (TEMP MOCK)
-    const aiResponseText = await callAI(prompt, presetConfig);
+    if (isGlobalGenerationPreset) {
+      const mergedText = chunks.join("\n\n");
 
-    // 9️⃣ MCQ VALIDATION (if needed)
-    if (presetKey === "mcq") {
-      const validation = validateMCQOutput(
-        aiResponseText,
-        presetConfig.questionCount
-      );
+      const prompt = buildPrompt({
+        text: mergedText,
+        preset: presetConfig
+      });
 
-      if (!validation.valid) {
-        return res.status(400).json({
-          success: false,
-          error: validation.error
+      finalOutput = await callAI(prompt, presetConfig);
+
+    } else {
+      // 🔥 Chunk-based presets
+      const aiResults = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        console.log(`🚀 Processing chunk ${i + 1}/${chunks.length}`);
+
+        const prompt = buildPrompt({
+          text: chunks[i],
+          preset: presetConfig
         });
+
+        const aiResponseText = await callAI(prompt, presetConfig);
+        aiResults.push(aiResponseText);
       }
+
+      finalOutput = aiResults.join("\n\n");
     }
+
+    // 6️⃣ EXECUTION TIME GUARD
+    const duration = (Date.now() - startTime) / 1000;
+
+    if (duration > 90) {
+      throw new Error("Processing time exceeded safe limit");
+    }
+
+    console.log("Processing time:", duration, "seconds");
 
     return res.json({
       success: true,
       fileType: ext.replace(".", ""),
       preset: presetConfig.name,
       chunksCount: chunks.length,
-      data: aiResponseText
+      data: finalOutput
     });
 
   } catch (err) {

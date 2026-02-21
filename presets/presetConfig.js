@@ -48,27 +48,30 @@ const PRESETS = {
       "remove_explanations",
       "no_filler_text",
       "high_density_info"
-    ]
+    ],
+    maxChunks: 1
   },
 
   /* =========================
      QUESTION GENERATION
   ========================= */
 
-  mcq: {
-    key: "mcq",
-    name: "MCQ Generator",
-    description: "Multiple choice questions for self-testing",
-    outputStyle: "mcq",
-    questionCount: 20,
-    rules: [
-      "generate_mcq",
-      "four_options_each",
-      "single_correct_answer",
-      "highlight_correct_answer",
-      "exam_relevant_only"
-    ]
-  },
+mcq: {
+  key: "mcq",
+  type: "mcq",
+  name: "MCQ Generator",
+  description: "Multiple choice questions for self-testing",
+  outputStyle: "mcq",
+  questionCount: 20,
+  rules: [
+    "generate_mcq",
+    "four_options_each",
+    "single_correct_answer",
+    "highlight_correct_answer",
+    "exam_relevant_only"
+  ],
+  maxChunks: 2
+},
 
   shortQA: {
     key: "shortQA",
@@ -158,7 +161,8 @@ const PRESETS = {
       "short_answers_only",
       "active_recall_style",
       "one_concept_per_card"
-    ]
+    ],
+    maxChunks: 2
   }
 };
 
