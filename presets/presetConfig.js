@@ -151,19 +151,7 @@ mcq: {
     ]
   },
 
-  flashcards: {
-    key: "flashcards",
-    name: "Flashcards",
-    description: "Question–answer flashcards for active recall",
-    outputStyle: "flashcards",
-    rules: [
-      "question_answer_pairs",
-      "short_answers_only",
-      "active_recall_style",
-      "one_concept_per_card"
-    ],
-    maxChunks: 2
-  }
+ 
 };
 
 module.exports = { PRESETS };
